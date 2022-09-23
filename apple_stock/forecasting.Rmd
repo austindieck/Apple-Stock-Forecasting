@@ -1,0 +1,230 @@
+---
+title: "Apple Share Forecasting"
+output:
+  html_document:
+    df_print: paged
+  html_notebook:
+    theme: journal
+    highlight: textmate
+    code_folding: hide
+---
+
+```{r, warning=FALSE, message=FALSE}
+#Importing packages dplyr and tidyr to assist data manipulation
+library(dplyr)
+library(tidyr)
+library(zoo)
+
+#Importing apple stock market values
+apple <- read.csv('HistoricalData_1663834817479.csv')
+apple <- as.data.frame(apple)
+```
+
+## Apple Dataset: {.tabset}
+
+### Data Preview
+
+```{r}
+head(apple)
+```
+
+### Data Summary
+
+```{r}
+summary(apple)
+```
+
+## 
+
+Data contains dollar symbol in monetary values which should be removed to work with numerical values. The "Dates" column is also of class character and should be converted to a date type. Next step shows data cleaning process to remove symbol.
+
+```{r}
+apple <- lapply(apple, sub, pattern = '\\$', replacement = '')
+apple <- as.data.frame(apple)
+apple$Date <- as.Date(apple$Date, "%m/%d/%Y")
+apple$Date <- as.Date(apple$Date, "%Y-%m-%d")
+head(apple)
+```
+
+```{r}
+plot(apple$Date, apple$Close.Last,col = 'grey', xlab = 'Date', ylab = 'Price/Share($)')
+lines(apple$Date, apple$Open, col = 'black')
+lines(apple$Date, apple$High, col = 'green')
+lines(apple$Date, apple$Low, col = 'red')
+legend(x = 'topleft', y=150, legend = c('Close', 'Open', 'High', 'Low'), fill = c('grey', 'black', 'green', 'red'))
+```
+
+The stock market has a lot of volatility in it, so it may be beneficial to exponentially smooth the data set to ensure there are less random occurrences being analyzed. To accomplish this, the HoltWinters function will be used. First, the data must be converted to time series data and its components will be examined. 
+
+```{r}
+#Number of trading days in a year
+Trading_Days <- 252
+
+#Convert columns from type char to numeric
+for(i in 2:length(names(apple))){
+  apple[, i] <- as.numeric(apple[, i])
+}
+
+#Order data set by date
+apple_ordered <- zoo(apple[,-1], order.by = apple[,1])
+head(apple_ordered)
+
+#Converting DF to time series data and starting on 184/252 trading day in 2017 
+apple_ts <- ts(apple_ordered, frequency = Trading_Days, start = c(2017, 184))
+
+components_apple_close <- decompose(apple_ts[, 1])
+components_apple_volume <- decompose(apple_ts[, 2])
+components_apple_open <- decompose(apple_ts[, 3])
+components_apple_high <- decompose(apple_ts[, 4])
+components_apple_low <- decompose(apple_ts[, 5])
+```
+## Apple Stock Price & Volume Changes Over Time: {.tabset}
+
+### Close Price
+```{r}
+plot(components_apple_close)
+```
+
+### Trade Volume
+```{r}
+plot(components_apple_volume)
+```
+
+
+### Open Price
+```{r}
+plot(components_apple_open)
+```
+
+### High Price
+```{r}
+plot(components_apple_high)
+```
+
+### Low Price
+```{r}
+plot(components_apple_low)
+```
+
+##
+
+It is evident that there is randomness present in the data, but it is significantly lower in magnitude when compared to the trend and observed data. Therefore, a valid forecast is possible. To accomplish this the data will first be exponentially smoothed using the HoltWinters method.
+
+```{r}
+#Applying HoltWinters function for exponential smoothing
+apple_close_smoothed <- HoltWinters(apple_ts[,1])
+apple_volume_smoothed <- HoltWinters(apple_ts[,2])
+apple_open_smoothed <- HoltWinters(apple_ts[,3])
+apple_high_smoothed <- HoltWinters(apple_ts[,4])
+apple_low_smoothed <- HoltWinters(apple_ts[,5])
+```
+## Visual Inspection of Fits: {.tabset}
+
+### Close Price Fit
+```{r}
+#Visually evaluate the fits
+plot(apple_ts[,1], ylab = 'Closing Price ($)', col = 'red')
+lines(apple_close_smoothed$fitted[,1], lty = 2, col = 'blue')
+legend(x = 'topleft', y=150, legend = c('Original', 'Fit'), fill = c('red', 'blue'))
+```
+
+### Trade Volume Fit
+```{r}
+#Visually evaluate the fits
+plot(apple_ts[,2], ylab = 'Volume', col = 'red')
+lines(apple_volume_smoothed$fitted[,1], lty = 2, col = 'blue')
+legend(x = 'topright', legend = c('Original', 'Fit'), fill = c('red', 'blue'))
+```
+
+### Open Price Fit
+```{r}
+#Visually evaluate the fits
+plot(apple_ts[,3], ylab = 'Open Price ($)', col = 'red')
+lines(apple_open_smoothed$fitted[,1], lty = 2, col = 'blue')
+legend(x = 'topleft', y=150, legend = c('Original', 'Fit'), fill = c('red', 'blue'))
+```
+
+### High Price Fit
+```{r}
+#Visually evaluate the fits
+plot(apple_ts[,4], ylab = 'High Price ($)', col = 'red')
+lines(apple_high_smoothed$fitted[,1], lty = 2, col = 'blue')
+legend(x = 'topleft', y=150, legend = c('Original', 'Fit'), fill = c('red', 'blue'))
+```
+
+### Low Price Fit
+```{r}
+#Visually evaluate the fits
+plot(apple_ts[,5], ylab = 'Low Price ($)', col = 'red')
+lines(apple_low_smoothed$fitted[,1], lty = 2, col = 'blue')
+legend(x = 'topleft', y=150, legend = c('Original', 'Fit'), fill = c('red', 'blue'))
+```
+##
+
+Each fit appears to match well with the original data set. Now, this fit data can be used to forecast the share prices and trade volume over the next year. It will also be beneficial to include confidence intervals along with the predicted data.
+
+```{r}
+#Forecasting next 252 trading days
+apple_close_forecast <- predict(apple_close_smoothed, 252, prediction.interval = TRUE, level=0.95)
+apple_volume_forecast <- predict(apple_volume_smoothed, 252, prediction.interval = TRUE, level=0.95)
+apple_open_forecast <- predict(apple_open_smoothed, 252, prediction.interval = TRUE, level=0.95)
+apple_high_forecast <- predict(apple_high_smoothed, 252, prediction.interval = TRUE, level=0.95)
+apple_low_forecast <- predict(apple_low_smoothed, 252, prediction.interval = TRUE, level=0.95)
+```
+
+We can take a look at the predicted data over the next 252 trading days below.
+
+## Forecasts: {.tabset}
+
+
+### Close Price
+```{r}
+#Visually evaluate the prediction
+plot(apple_ts[,1], ylab="Close Price ($)", xlim = c(2019, 2024))
+lines(apple_close_smoothed$fitted[,1], lty=2, col="blue")
+lines(apple_close_forecast[,1], col="red")
+lines(apple_close_forecast[,2], lty=2, col="orange")
+lines(apple_close_forecast[,3], lty=2, col="orange")
+```
+
+### Trade Volume
+```{r}
+#Visually evaluate the prediction
+plot(apple_ts[,2], ylab="Trade Volume", xlim = c(2019, 2024))
+lines(apple_volume_smoothed$fitted[,1], lty=2, col="blue")
+lines(apple_volume_forecast[,1], col="red")
+lines(apple_volume_forecast[,2], lty=2, col="orange")
+lines(apple_volume_forecast[,3], lty=2, col="orange")
+```
+
+### Open Price
+```{r}
+#Visually evaluate the prediction
+plot(apple_ts[,3], ylab="Open Price ($)", xlim = c(2019, 2024))
+lines(apple_open_smoothed$fitted[,1], lty=2, col="blue")
+lines(apple_open_forecast[,1], col="red")
+lines(apple_open_forecast[,2], lty=2, col="orange")
+lines(apple_open_forecast[,3], lty=2, col="orange")
+```
+
+### High Price
+```{r}
+#Visually evaluate the prediction
+plot(apple_ts[,4], ylab="High Price ($)", xlim = c(2019, 2024))
+lines(apple_high_smoothed$fitted[,1], lty=2, col="blue")
+lines(apple_high_forecast[,1], col="red")
+lines(apple_high_forecast[,2], lty=2, col="orange")
+lines(apple_high_forecast[,3], lty=2, col="orange")
+```
+
+### Low Price
+```{r}
+#Visually evaluate the prediction
+plot(apple_ts[,5], ylab="Low Price ($)", xlim = c(2019, 2024))
+lines(apple_low_smoothed$fitted[,1], lty=2, col="blue")
+lines(apple_low_forecast[,1], col="red")
+lines(apple_low_forecast[,2], lty=2, col="orange")
+lines(apple_low_forecast[,3], lty=2, col="orange")
+```
+##
+
