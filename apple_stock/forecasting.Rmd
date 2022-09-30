@@ -1,8 +1,6 @@
 ---
 title: "Apple Share Forecasting"
 output:
-  html_document:
-    df_print: paged
   html_notebook:
     theme: journal
     highlight: textmate
@@ -112,12 +110,13 @@ It is evident that there is randomness present in the data, but it is significan
 
 ```{r}
 #Applying HoltWinters function for exponential smoothing
-apple_close_smoothed <- HoltWinters(apple_ts[,1])
-apple_volume_smoothed <- HoltWinters(apple_ts[,2])
-apple_open_smoothed <- HoltWinters(apple_ts[,3])
-apple_high_smoothed <- HoltWinters(apple_ts[,4])
-apple_low_smoothed <- HoltWinters(apple_ts[,5])
+apple_close_smoothed <- HoltWinters(apple_ts[,1], seasonal = 'multiplicative')
+apple_volume_smoothed <- HoltWinters(apple_ts[,2], seasonal = 'multiplicative')
+apple_open_smoothed <- HoltWinters(apple_ts[,3], seasonal = 'multiplicative')
+apple_high_smoothed <- HoltWinters(apple_ts[,4], seasonal = 'multiplicative')
+apple_low_smoothed <- HoltWinters(apple_ts[,5], seasonal = 'multiplicative')
 ```
+
 ## Visual Inspection of Fits: {.tabset}
 
 ### Close Price Fit
@@ -159,6 +158,7 @@ plot(apple_ts[,5], ylab = 'Low Price ($)', col = 'red')
 lines(apple_low_smoothed$fitted[,1], lty = 2, col = 'blue')
 legend(x = 'topleft', y=150, legend = c('Original', 'Fit'), fill = c('red', 'blue'))
 ```
+
 ##
 
 Each fit appears to match well with the original data set. Now, this fit data can be used to forecast the share prices and trade volume over the next year. It will also be beneficial to include confidence intervals along with the predicted data.
@@ -226,5 +226,23 @@ lines(apple_low_forecast[,1], col="red")
 lines(apple_low_forecast[,2], lty=2, col="orange")
 lines(apple_low_forecast[,3], lty=2, col="orange")
 ```
+
 ##
 
+Looking at our predicted data can help give us insight into when may be a good time to invest our money into apple shares. Of course, this report is done for demonstration purposes and using such methods for predictions on share price is just about as good as gambling. Disregarding the completely unpredictable nature of the stock market, we can look at the minimum values of our data forecasts to get an idea for what might be a good value for a limit buy and a limit buy for our apple shares in the future. 
+
+```{r}
+#Determining lowest share prices for Close, Open, High, and Low in forecasts
+low_buys <- c()
+low_buys[1] <- min(apple_close_forecast[,1])
+low_buys[2] <- min(apple_open_forecast[,1])
+low_buys[3] <- min(apple_high_forecast[,1])
+low_buys[4] <- min(apple_low_forecast[,1])
+mean(low_buys)
+```
+
+Above we can see that our lowest price forecasts can be averaged together to give us 102.54 dollars per share. It can also be seen that the lowest share price is occurring just shortly after the beginning of 2023. Therefore, we can set a conservative limit buy of about 110 dollars one week into December 2022. 
+
+Should we obtain our shares at the limit price we set, we can now go ahead and decide if we want to hold long term or turn around and set a limit sell for a price of our choice. A safe choice may be something like 140 dollars per share and holding our shares until we are able to sell them at this price. 
+
+Once again, this report is utilized to demonstrate the capabilities of exponential smoothing and forecasting future data based on past trends and randomness. Nothing in this report should be taken as financial advice.
